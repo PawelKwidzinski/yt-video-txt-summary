@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaModel;
 import org.springframework.ai.ollama.api.OllamaOptions;
 import org.springframework.core.io.FileSystemResource;
@@ -22,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 class YtSubDownloaderService {
 
-    private final ChatModel chatModel;
+    private final OllamaChatModel chatModel;
     private final YTSubConverter ytSubConverter;
 
     String getSummaryFromYtTxt(String ytId, String language, String prompt) throws IOException, InterruptedException {
@@ -61,8 +62,7 @@ class YtSubDownloaderService {
 
         log.info("Prompt processing: {}", prompt);
         ChatResponse response = chatModel.call(
-                new Prompt(prompt + "\n" + subtitlesContent,
-                        OllamaOptions.builder().model(OllamaModel.LLAMA3_2).build()));
+                new Prompt(prompt + "\n" + subtitlesContent));
 
         return response.getResult().getOutput().getText();
     }
