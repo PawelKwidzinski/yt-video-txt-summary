@@ -22,30 +22,30 @@ class YTSubConverter {
 
         // Use relative paths
         Path inputPath = Paths.get("subtitles", fileName);
-        Path outputPath = Paths.get("clean_subtitles", fileName);
+        Path outputPath = Paths.get("subtitles-clean", fileName);
 
         try (BufferedReader br = Files.newBufferedReader(inputPath)) {
             String line;
             while ((line = br.readLine()) != null) {
-                // Pomijaj nagłówki i puste linie
+                // Skip headers and blank lines
                 if (line.startsWith("WEBVTT") || line.startsWith("Kind:") || line.startsWith("Language:") || line.trim().isEmpty()) {
                     continue;
                 }
 
-                // Linia z timestampem - następna linia będzie zawierać tekst
+                // Timestamp line - the next line will contain text
                 if (line.contains("-->")) {
                     isTextLine = true;
                     continue;
                 }
 
                 if (isTextLine) {
-                    // Usuń znaczniki czasu i formatowania
+                    // Remove timestamps and formatting
                     String cleanedLine = line.replaceAll("<[^>]+>", "")
                             .replaceAll("\\s+", " ")
                             .trim();
 
                     if (!cleanedLine.isEmpty()) {
-                        // Dodaj spację jeśli potrzebna
+                        // Add a space if needed
                         if (!result.isEmpty() && !result.substring(result.length() - 1).equals(" ")) {
                             result.append(" ");
                         }
