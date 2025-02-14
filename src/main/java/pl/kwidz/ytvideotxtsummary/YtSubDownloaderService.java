@@ -2,21 +2,21 @@ package pl.kwidz.ytvideotxtsummary;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.ollama.api.OllamaModel;
-import org.springframework.ai.ollama.api.OllamaOptions;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @Service
 @RequiredArgsConstructor
@@ -26,7 +26,7 @@ class YtSubDownloaderService {
     private final OllamaChatModel chatModel;
     private final YTSubConverter ytSubConverter;
 
-    String getSummaryFromYtTxt(String ytId, String language, String prompt) throws IOException, InterruptedException {
+    String getSummaryFromYtTxt(String ytId, String language, String prompt) throws InterruptedException, IOException {
 
         String fileName = String.format("%s.%s.vtt", ytId, language);
 
@@ -57,7 +57,12 @@ class YtSubDownloaderService {
         log.info("Starting cleaning file: {}", fileName);
         ytSubConverter.cleanTranscript(fileName);
 
-        FileSystemResource subtitles = new FileSystemResource(String.format("clean_subtitles/%s", fileName));
+        Path cleanedSubtitlesPath = Paths.get("subtitles-clean", fileName);
+        FileSystemResource subtitles = new FileSystemResource(cleanedSubtitlesPath.toFile());
+
+        if (!subtitles.exists()) {
+            throw new FileNotFoundException("The subtitle file was not found: " + cleanedSubtitlesPath);
+        }
         String subtitlesContent = StreamUtils.copyToString(subtitles.getInputStream(), StandardCharsets.UTF_8);
 
         log.info("Prompt processing: {}", prompt);
