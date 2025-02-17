@@ -17,9 +17,9 @@ class YTSubConverter {
     void cleanTranscript(String fileName) throws IOException {
 
         StringBuilder result = new StringBuilder();
+        String lastCleanedLine = null; // stores the last line added
         boolean isTextLine = false;
 
-        // Use relative paths
         Path inputPath = Paths.get("subtitles", fileName);
         log.info("Input path: {}", inputPath.toAbsolutePath());
 
@@ -33,29 +33,27 @@ class YTSubConverter {
         try (BufferedReader br = Files.newBufferedReader(inputPath)) {
             String line;
             while ((line = br.readLine()) != null) {
-                // Skip headers and blank lines
+                // We omit headers and blank lines
                 if (line.startsWith("WEBVTT") || line.startsWith("Kind:") || line.startsWith("Language:") || line.trim().isEmpty()) {
                     continue;
                 }
-
-                // Timestamp line - the next line will contain text
+                // Line with timestamp - next line will be text
                 if (line.contains("-->")) {
                     isTextLine = true;
                     continue;
                 }
-
                 if (isTextLine) {
-                    // Remove timestamps and formatting
+                    // We remove HTML tags and extra spaces
                     String cleanedLine = line.replaceAll("<[^>]+>", "")
                             .replaceAll("\\s+", " ")
                             .trim();
-
-                    if (!cleanedLine.isEmpty()) {
-                        // Add a space if needed
-                        if (!result.isEmpty() && !result.substring(result.length() - 1).equals(" ")) {
-                            result.append(" ");
+                    // Add a line only if it is not empty and does not repeat the previous one
+                    if (!cleanedLine.isEmpty() && !cleanedLine.equals(lastCleanedLine)) {
+                        if (!result.isEmpty()) {
+                            result.append("\n");
                         }
                         result.append(cleanedLine);
+                        lastCleanedLine = cleanedLine;
                     }
                     isTextLine = false;
                 }
@@ -70,9 +68,8 @@ class YTSubConverter {
     private static void saveToFile(String filePath, String content) {
         Path path = Paths.get(filePath);
         try {
-            // Make sure the directory exists
+            // We make sure that the directory exists
             Files.createDirectories(path.getParent());
-
             // Save file
             Files.writeString(path, content);
             log.info("Successfully saved to: {}", path.toAbsolutePath());
@@ -81,5 +78,5 @@ class YTSubConverter {
             throw new RuntimeException("Unable to save file: " + path, e);
         }
     }
-
 }
+

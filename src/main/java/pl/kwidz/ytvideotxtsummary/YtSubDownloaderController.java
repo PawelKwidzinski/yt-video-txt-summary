@@ -29,6 +29,7 @@ class YtSubDownloaderController {
         model.addAttribute("ytSubtitle", ytSubtitle);
         String summary = service.getSummaryFromYtTxt(ytSubtitle.getYtId(), ytSubtitle.getLanguage(), ytSubtitle.getPrompt());
         model.addAttribute("summary", summary);
+        log.info("Summary generated: {}", summary);
         return "index";
     }
 

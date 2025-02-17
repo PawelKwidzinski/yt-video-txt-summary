@@ -27,34 +27,66 @@ class YtSubDownloaderService {
     private final YTSubConverter ytSubConverter;
 
     String getSummaryFromYtTxt(String ytId, String language, String prompt) throws InterruptedException, IOException {
-
         String fileName = String.format("%s.%s.vtt", ytId, language);
-
         String projectPath = new File(".").getAbsolutePath();
 
-        Process process = Runtime.getRuntime().exec(String.format(
-                "docker run --rm -v %s:/app jauderho/yt-dlp " +
-                        "--write-auto-sub --sub-lang %s --skip-download " +
-                        "-P /app/subtitles " +  // Keep Docker path consistent
-                        "-o %s " +
-                        "https://www.youtube.com/watch?v=%s", projectPath, language, ytId, ytId
-        ));
+        // Download metadata from yt sub (title and upload_date)
+        String[] metadataCommand = {
+                "docker", "run", "--rm",
+                "-v", projectPath + ":/app",
+                "jauderho/yt-dlp",
+                "--skip-download",
+                "--print", "%(title)s",
+                "--print", "%(upload_date)s",
+                "https://www.youtube.com/watch?v=" + ytId
+        };
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+        Process metadataProcess = Runtime.getRuntime().exec(metadataCommand);
 
+        String title = "";
+        String uploadDate = "";
+
+        BufferedReader metadataReader = new BufferedReader(new InputStreamReader(metadataProcess.getInputStream()));
         String line;
-        while ((line = reader.readLine()) != null) {
-            log.info(line);
+        int lineCount = 0;
+        while ((line = metadataReader.readLine()) != null) {
+            if (lineCount == 0) {
+                title = line;
+            } else if (lineCount == 1) {
+                uploadDate = line;
+            }
+            lineCount++;
         }
-        while ((line = errorReader.readLine()) != null) {
-            log.info(line);
-        }
-        process.waitFor();
-        log.info("Finish downloading");
+        metadataProcess.waitFor();
 
-        // cleaning and conversion to txt without yt timestamps
-        log.info("Starting cleaning file: {}", fileName);
+        // Formatting date from YYYYMMDD to YYYY-MM-DD
+        if (uploadDate.length() == 8) {
+            uploadDate = uploadDate.substring(0, 4) + "-" +
+                    uploadDate.substring(4, 6) + "-" +
+                    uploadDate.substring(6, 8);
+        }
+
+        // Download yt sub
+        String[] subtitlesCommand = {
+                "docker", "run", "--rm",
+                "-v", projectPath + ":/app",
+                "jauderho/yt-dlp",
+                "--write-auto-sub",
+                "--sub-lang", language,
+                "--skip-download",
+                "-P", "/app/subtitles",
+                "-o", ytId,
+                "https://www.youtube.com/watch?v=" + ytId
+        };
+
+        Process subtitlesProcess = Runtime.getRuntime().exec(subtitlesCommand);
+
+        BufferedReader subtitlesReader = new BufferedReader(new InputStreamReader(subtitlesProcess.getInputStream()));
+        while ((line = subtitlesReader.readLine()) != null) {
+            log.info(line);
+        }
+        subtitlesProcess.waitFor();
+
         ytSubConverter.cleanTranscript(fileName);
 
         Path cleanedSubtitlesPath = Paths.get("subtitles-clean", fileName);
@@ -65,11 +97,16 @@ class YtSubDownloaderService {
         }
         String subtitlesContent = StreamUtils.copyToString(subtitles.getInputStream(), StandardCharsets.UTF_8);
 
-        log.info("Prompt processing: {}", prompt);
-        ChatResponse response = chatModel.call(
-                new Prompt(prompt + "\n" + subtitlesContent));
+        String subtitlesMetadata = String.format(
+                "Title: %s.\nCreated at: %s\nTranscription:",
+                title,
+                uploadDate
+        );
+
+        Prompt chatPrompt = new Prompt(prompt + "\n\n" + subtitlesMetadata + "\n" + subtitlesContent);
+
+        ChatResponse response = chatModel.call(chatPrompt);
 
         return response.getResult().getOutput().getText();
     }
-
 }
